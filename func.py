@@ -3,9 +3,10 @@ import json
 import logging
 import oci
 import base64
+import cx_Oracle
+import os
 
 import os
-import random
 
 from oci.ai_vision import AIServiceVisionClient
 from oci.ai_vision.models import AnalyzeImageDetails, ImageClassificationFeature, InlineImageDetails
@@ -15,7 +16,7 @@ from fdk import response
 
 signer = oci.auth.signers.get_resource_principals_signer()
 ai_service_vision_client = AIServiceVisionClient({}, signer=signer)
-
+secret_client = oci.secrets.SecretsClient({}, signer=signer)
 
 def handler(ctx, data: io.BytesIO = None):
     try:
@@ -24,7 +25,19 @@ def handler(ctx, data: io.BytesIO = None):
         model_id = body.get("model_id")
 
         r = analize_image(image_base64, model_id)
+        
+        r["details"] = {"no_working" : "value" }
+        
+        if r["labels"] is not None and len(r["labels"]) > 0:
+            label_id = r["labels"][0]["name"]
+            logging.getLogger().info('label_id in labels: ' + label_id)
+            r["details"] = get_item_details(label_id)
 
+        if r["image_objects"] is not None and len(r["image_objects"]) > 0:
+            label_id = r["image_objects"][0]["name"]
+            logging.getLogger().info('label_id in image_objects: ' + label_id)
+            r["details"] = get_item_details(label_id)
+        
         return response.Response(ctx, response_data=json.dumps(r), headers={"Content-Type": "application/json"})
 
     except (Exception, ValueError) as ex:
@@ -56,3 +69,32 @@ def analize_image(image_encoded, model_id=None):
 	res = ai_service_vision_client.analyze_image(analyze_image_details=analyze_image_details)
     
 	return oci.util.to_dict(res.data)
+
+
+### Database functions
+
+def get_text_secret(secret_ocid):
+    try:
+        secret_content = secret_client.get_secret_bundle(secret_ocid).data.secret_bundle_content.content.encode('utf-8')
+        decrypted_secret_content = base64.b64decode(secret_content).decode("utf-8")
+        return decrypted_secret_content
+    except Exception as ex:
+        print("ERROR: failed to retrieve the secret content", ex, flush=True)
+        raise
+
+def get_item_details(item_id):
+    #try:
+    logging.getLogger().info("data " + username + ' ' + os.environ["PASSWORD_SECRET_OCID"] + ' ' + password + ' ' + db_url)
+    con = cx_Oracle.connect(username, password, db_url)
+    with con.cursor() as cursor:
+        for row in cursor.execute('SELECT c.doc FROM ITEM_DETAILS c where c.doc.id = "%s"' % item_id):
+            return row
+    #except Exception as e:
+    #    print('ERROR: Missing configuration keys, secret ocid and secret_type', e, flush=True)
+
+    return {"id" : item_id, "name" : "NO_MATCH"}
+
+username = os.environ["ATP_USERNAME"]
+password = get_text_secret(os.environ["PASSWORD_SECRET_OCID"])
+db_url = os.environ["DB_DNS"]
+DB_WALLET_PATH = os.environ["TNS_ADMIN"]
