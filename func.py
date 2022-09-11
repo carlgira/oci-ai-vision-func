@@ -4,6 +4,7 @@ import logging
 import oci
 import base64
 import cx_Oracle
+import json
 import os
 
 import os
@@ -83,14 +84,19 @@ def get_text_secret(secret_ocid):
         raise
 
 def get_item_details(item_id):
+    con = None
     #try:
-    logging.getLogger().info("data " + username + ' ' + os.environ["PASSWORD_SECRET_OCID"] + ' ' + password + ' ' + db_url)
+    logging.getLogger().info("data " + username + ' ' + ' ' + password + ' ' + db_url + ' ' + os.environ["TNS_ADMIN"])
     con = cx_Oracle.connect(username, password, db_url)
     with con.cursor() as cursor:
-        for row in cursor.execute('SELECT c.doc FROM ITEM_DETAILS c where c.doc.id = "%s"' % item_id):
-            return row
+        for row in cursor.execute("SELECT c.doc FROM ITEM_DETAILS c where c.doc.id = '%s'" % item_id):
+            value = json.loads(row[0].read())
+            return value
     #except Exception as e:
     #    print('ERROR: Missing configuration keys, secret ocid and secret_type', e, flush=True)
+    #finally:
+    #    if con is not None:
+    #        con.close()
 
     return {"id" : item_id, "name" : "NO_MATCH"}
 
