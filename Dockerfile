@@ -14,21 +14,17 @@ RUN  yum -y install oracle-instantclient${release}.${update}-basiclite && \
      yum -y install unzip gcc && \
      rm -rf /var/cache/yum
 
-RUN mkdir /tmp/dbwallet
-COPY wallet.zip /tmp
-RUN unzip /tmp/wallet.zip -d /tmp/dbwallet
-RUN chown -R fn:fn /tmp/dbwallet
-ENV TNS_ADMIN=/tmp/dbwallet
+ADD . /function/
+
+RUN unzip wallet.zip -d /function/wallet
 
 # Set wallet location
-RUN sed -i 's/\?\/network\/admin/\/tmp\/dbwallet/g' /tmp/dbwallet/sqlnet.ora
-
-ADD . /function/
+RUN sed -i 's/\?\/network\/admin/\/function\/wallet/g' /function/wallet/sqlnet.ora
 
 RUN pip3 install --upgrade pip
 RUN pip3 install --upgrade setuptools
 RUN pip3 install --no-cache --no-cache-dir -r requirements.txt
-RUN rm -fr /function/.pip_cache ~/.cache/pip requirements.txt func.yaml Dockerfile README.md /tmp/wallet.zip
+RUN rm -fr /function/.pip_cache ~/.cache/pip requirements.txt func.yaml Dockerfile README.md
 
 ENV PYTHONPATH=/python
 ENTRYPOINT ["/usr/local/bin/fdk", "/function/func.py", "handler"]
