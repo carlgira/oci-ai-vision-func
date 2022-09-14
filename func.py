@@ -6,14 +6,11 @@ import base64
 import cx_Oracle
 import json
 import os
-
-import os
+from fdk import response
 
 from oci.ai_vision import AIServiceVisionClient
-from oci.ai_vision.models import AnalyzeImageDetails, ImageClassificationFeature, InlineImageDetails, ImageObjectDetectionFeature
+from oci.ai_vision.models import AnalyzeImageDetails, ImageClassificationFeature, InlineImageDetails
 
-
-from fdk import response
 
 signer = oci.auth.signers.get_resource_principals_signer()
 ai_service_vision_client = AIServiceVisionClient({}, signer=signer)
@@ -21,6 +18,10 @@ secret_client = oci.secrets.SecretsClient({}, signer=signer)
 
 
 def handler(ctx, data: io.BytesIO = None):
+    '''
+    Function that receives an image to process in the vision service.
+    Optional can receive the model_id
+    '''
     try:
         body = json.loads(data.getvalue())
         image_base64 = body.get("image")
@@ -28,7 +29,7 @@ def handler(ctx, data: io.BytesIO = None):
 
         r = analize_image(image_base64, model_id)
 
-        r["details"] = {"no_working": "value"}
+        r["details"] = {"id" : '', "name" : ''}
 
         if r["labels"] is not None and len(r["labels"]) > 0:
             label_id = r["labels"][0]["name"]
@@ -50,7 +51,6 @@ def handler(ctx, data: io.BytesIO = None):
 
 
 def analize_image(image_encoded, model_id=None):
-
 	image_details = InlineImageDetails()
 	image_details.data = image_encoded
 
@@ -81,7 +81,7 @@ def get_text_secret(secret_ocid):
         decrypted_secret_content = base64.b64decode(secret_content).decode("utf-8")
         return decrypted_secret_content
     except Exception as ex:
-        print("ERROR: failed to retrieve the secret content", ex, flush=True)
+        logging.exception("ERROR: failed to retrieve the secret content")
         raise
 
 def get_item_details(item_id):
@@ -107,4 +107,3 @@ username = os.environ["ATP_USERNAME"]
 password = get_text_secret(os.environ["PASSWORD_SECRET_OCID"])
 db_url = os.environ["DB_DNS"]
 os.environ["TNS_ADMIN"] = '/function/wallet'
-
